@@ -34,6 +34,7 @@ import com.google.common.net.InetAddresses;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.Executors;
 import javax.inject.Provider;
@@ -301,18 +302,22 @@ public class FunctionsSnippetsTest extends BaseParserTest {
         functions.put(IsUrl.NAME, new IsUrl());
 
         final GrokPatternService grokPatternService = mock(GrokPatternService.class);
+        final GrokPattern greedyPattern = GrokPattern.create("GREEDY", ".*");
         Set<GrokPattern> patterns = Sets.newHashSet(
+                greedyPattern,
                 GrokPattern.create("GREEDY", ".*"),
                 GrokPattern.create("BASE10NUM", "(?<![0-9.+-])(?>[+-]?(?:(?:[0-9]+(?:\\.[0-9]+)?)|(?:\\.[0-9]+)))"),
                 GrokPattern.create("NUMBER", "(?:%{BASE10NUM:UNWANTED})"),
                 GrokPattern.create("NUM", "%{BASE10NUM}")
         );
         when(grokPatternService.loadAll()).thenReturn(patterns);
+        when(grokPatternService.loadByName("GREEDY")).thenReturn(Optional.of(greedyPattern));
         final EventBus clusterBus = new EventBus();
         final GrokPatternRegistry grokPatternRegistry = new GrokPatternRegistry(clusterBus,
                                                                                 grokPatternService,
                                                                                 Executors.newScheduledThreadPool(1));
         functions.put(GrokMatch.NAME, new GrokMatch(grokPatternRegistry));
+        functions.put(GrokExists.NAME, new GrokExists(grokPatternRegistry));
 
         functionRegistry = new FunctionRegistry(functions);
     }
@@ -462,6 +467,14 @@ public class FunctionsSnippetsTest extends BaseParserTest {
 
     @Test
     public void digests() {
+        final Rule rule = parser.parseRule(ruleForTest(), false);
+        evaluateRule(rule);
+
+        assertThat(actionsTriggered.get()).isTrue();
+    }
+
+    @Test
+    public void grok_exists() {
         final Rule rule = parser.parseRule(ruleForTest(), false);
         evaluateRule(rule);
 
